@@ -1,0 +1,483 @@
+{
+  "name": "Client Onboarding Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "9c97bc25-0e23-4f94-9cbb-4592a666c838",
+        "options": { "allowedOrigins": "*" }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-10864, 11664],
+      "id": "f9784729-fb38-4497-ae80-6c85c313dc8b",
+      "name": "Webhook",
+      "webhookId": "9c97bc25-0e23-4f94-9cbb-4592a666c838"
+    },
+
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $input.first().json.body || {};\n\nconst firstName    = (body.firstName || '').trim();\nconst lastName     = (body.lastName  || '').trim();\nconst email        = (body.email     || '').trim();\nconst company      = (body.company   || '').trim();\nconst service      = (body.service   || '').trim();\nconst fullName     = (firstName + ' ' + lastName).trim();\n\nconst now          = new Date();\nconst pad          = n => String(n).padStart(2, '0');\nconst timestamp    = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());\nconst submissionId = Date.now() + '-' + Math.random().toString(36).substring(2, 8);\n\nconst emailValid = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email);\n\nreturn [{\n  json: {\n    firstName, lastName, fullName, email, company, service,\n    timestamp, submissionId,\n    status:        emailValid ? 'Pending' : 'Failed',\n    failureReason: emailValid ? ''        : 'Invalid email address format',\n    emailValid\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-10640, 11664],
+      "id": "a1b2c3d4-1111-4444-aaaa-000000000001",
+      "name": "Validate and Normalize"
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "ef1",
+            "leftValue":  "={{$json.emailValid}}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-10416, 11664],
+      "id": "a1b2c3d4-1111-4444-aaaa-000000000003",
+      "name": "Email Format Valid?"
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/auto-e0de8/databases/(default)/documents/submissions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"firstName\":    {\"stringValue\": \"={{ $('Validate and Normalize').item.json.firstName }}\"},\n    \"lastName\":     {\"stringValue\": \"={{ $('Validate and Normalize').item.json.lastName }}\"},\n    \"email\":        {\"stringValue\": \"={{ $('Validate and Normalize').item.json.email }}\"},\n    \"company\":      {\"stringValue\": \"={{ $('Validate and Normalize').item.json.company }}\"},\n    \"service\":      {\"stringValue\": \"={{ $('Validate and Normalize').item.json.service }}\"},\n    \"timestamp\":    {\"stringValue\": \"={{ $('Validate and Normalize').item.json.timestamp }}\"},\n    \"submissionId\": {\"stringValue\": \"={{ $('Validate and Normalize').item.json.submissionId }}\"}\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-10192, 11968],
+      "id": "e0e3789c-aeec-4cb5-bd0b-4511ce6bf117",
+      "name": "Save to Firestore",
+      "onError": "continueRegularOutput"
+    },
+
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "1put_v9QQTPINKLszieEw-_z_lMgH0OzrTiYtO1xKTTk", "mode": "id" },
+        "sheetName":  { "__rl": true, "value": "gid=0", "mode": "list", "cachedResultName": "Submissions", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1put_v9QQTPINKLszieEw-_z_lMgH0OzrTiYtO1xKTTk/edit#gid=0" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "submissionId": "={{$('Validate and Normalize').item.json.submissionId}}",
+            "firstName":    "={{$('Validate and Normalize').item.json.firstName}}",
+            "lastName":     "={{$('Validate and Normalize').item.json.lastName}}",
+            "fullName":     "={{$('Validate and Normalize').item.json.fullName}}",
+            "email":        "={{$('Validate and Normalize').item.json.email}}",
+            "company":      "={{$('Validate and Normalize').item.json.company}}",
+            "service":      "={{$('Validate and Normalize').item.json.service}}",
+            "timestamp":    "={{$('Validate and Normalize').item.json.timestamp}}",
+            "status":       "={{$json.status}}",
+            "failureReason":"={{$json.failureReason ?? ''}}"
+          },
+          "matchingColumns": ["submissionId"],
+          "schema": [
+            {"id":"firstName",    "displayName":"firstName",    "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"lastName",     "displayName":"lastName",     "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"fullName",     "displayName":"fullName",     "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"email",        "displayName":"email",        "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"company",      "displayName":"company",      "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"service",      "displayName":"service",      "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"timestamp",    "displayName":"timestamp",    "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"submissionId", "displayName":"submissionId", "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true,"removed":false},
+            {"id":"status",       "displayName":"status",       "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"failureReason","displayName":"failureReason","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-10192, 11664],
+      "id": "0ad9441a-ce7f-4bb3-b3c6-dc85e0a07510",
+      "name": "Create Pending Row",
+      "credentials": { "googleSheetsOAuth2Api": { "id": "F9jNo5cS2WeJwNH4", "name": "Google Sheets account 4" } }
+    },
+
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data   = $input.first().json;\nconst domain = data.email.split('@')[1];\n\ntry {\n  const res    = await fetch('https://dns.google/resolve?name=' + encodeURIComponent(domain) + '&type=MX');\n  const result = await res.json();\n\n  if (result.Status === 0 && Array.isArray(result.Answer) && result.Answer.length > 0) {\n    return [{ json: { ...data, mxValid: true } }];\n  }\n\n  return [{ json: { ...data, mxValid: false, status: 'Failed', failureReason: 'Email domain has no valid mail server (MX record) — address likely does not exist' } }];\n\n} catch (err) {\n  return [{ json: { ...data, mxValid: false, status: 'Failed', failureReason: err.message || 'Could not verify email domain (DNS lookup failed)' } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-9968, 11664],
+      "id": "a1b2c3d4-2222-4444-bbbb-000000000002",
+      "name": "Check Domain MX"
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "mx1",
+            "leftValue":  "={{$json.mxValid}}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-9744, 11664],
+      "id": "a1b2c3d4-2222-4444-bbbb-000000000004",
+      "name": "Domain Valid?"
+    },
+
+    {
+      "parameters": {
+        "sendTo":  "={{$('Validate and Normalize').item.json.email}}",
+        "subject": "=Welcome, {{$('Validate and Normalize').item.json.firstName}}! — {{$('Validate and Normalize').item.json.service === 'Web Development' ? 'Your website project is confirmed' : $('Validate and Normalize').item.json.service === 'Automation' ? 'Your automation project is confirmed' : 'Your Web Development and Automation project is confirmed'}}",
+        "message": "=<p>Hi {{$('Validate and Normalize').item.json.firstName}},</p><p>Thanks for reaching out about <strong>{{$('Validate and Normalize').item.json.service === 'Both' ? 'Web Development and Automation' : $('Validate and Normalize').item.json.service}}</strong> for <strong>{{$('Validate and Normalize').item.json.company}}</strong>.</p><p>{{$('Validate and Normalize').item.json.service === 'Web Development' ? 'We are excited to help you build something great. Our team will review your details and reach out shortly to schedule a kickoff call and walk through timelines, scope, and next steps.' : $('Validate and Normalize').item.json.service === 'Automation' ? 'We are excited to help you cut out manual work and streamline your operations. Our team will reach out shortly to scope which processes we will automate first.' : 'We love full-stack engagements like this — building the product and the workflows that run it. Our team will reach out shortly to plan both tracks together.'}}</p><p>Talk soon,<br/>The Team</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [-9520, 11248],
+      "id": "b7e2a4f1-c3d8-4e9b-a5f0-1c2d3e4f5a6b",
+      "name": "Send Welcome Email",
+      "credentials": { "gmailOAuth2": { "id": "L2XHozcORIinc6V8", "name": "Gmail OAuth2 API" } },
+      "onError": "continueErrorOutput"
+    },
+
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "spr1", "name": "status",       "value": "Processed",           "type": "string" },
+            { "id": "spr2", "name": "failureReason", "value": "",                    "type": "string" },
+            { "id": "spr3", "name": "gmailThreadId", "value": "={{$json.threadId}}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-8848, 10928],
+      "id": "e74a44ac-981c-4313-9bf4-4304ee8494fc",
+      "name": "Set Status - Processed"
+    },
+
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "1put_v9QQTPINKLszieEw-_z_lMgH0OzrTiYtO1xKTTk", "mode": "id" },
+        "sheetName":  { "__rl": true, "value": "gid=0", "mode": "list", "cachedResultName": "Submissions", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1put_v9QQTPINKLszieEw-_z_lMgH0OzrTiYtO1xKTTk/edit#gid=0" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "submissionId": "={{$('Validate and Normalize').item.json.submissionId}}",
+            "firstName":    "={{$('Validate and Normalize').item.json.firstName}}",
+            "lastName":     "={{$('Validate and Normalize').item.json.lastName}}",
+            "fullName":     "={{$('Validate and Normalize').item.json.fullName}}",
+            "email":        "={{$('Validate and Normalize').item.json.email}}",
+            "company":      "={{$('Validate and Normalize').item.json.company}}",
+            "service":      "={{$('Validate and Normalize').item.json.service}}",
+            "timestamp":    "={{$('Validate and Normalize').item.json.timestamp}}",
+            "status":       "={{$json.status}}",
+            "failureReason":"={{$json.failureReason ?? ''}}"
+          },
+          "matchingColumns": ["submissionId"],
+          "schema": [
+            {"id":"firstName",    "displayName":"firstName",    "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"lastName",     "displayName":"lastName",     "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"fullName",     "displayName":"fullName",     "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"email",        "displayName":"email",        "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"company",      "displayName":"company",      "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"service",      "displayName":"service",      "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"timestamp",    "displayName":"timestamp",    "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"submissionId", "displayName":"submissionId", "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true,"removed":false},
+            {"id":"status",       "displayName":"status",       "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"failureReason","displayName":"failureReason","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-8624, 10928],
+      "id": "ed3eb3d4-7106-4818-bae0-de72788eeb0f",
+      "name": "Update Row - Processed",
+      "credentials": { "googleSheetsOAuth2Api": { "id": "F9jNo5cS2WeJwNH4", "name": "Google Sheets account 4" } },
+      "onError": "continueErrorOutput"
+    },
+
+    {
+      "parameters": {
+        "resource":    "channelMessage",
+        "teamId":      { "__rl": true, "value": "f6e4f04a-d72b-4965-843e-5e4b2cdc9ba9", "mode": "list", "cachedResultName": "Automation" },
+        "channelId":   { "__rl": true, "value": "19:KE1q1uEgnMWyYQin8RFhIrqSJS6ApW7d93PAzeFCYXI1@thread.tacv2", "mode": "list", "cachedResultName": "Automation", "cachedResultUrl": "https://teams.cloud.microsoft/l/channel/19%3AKE1q1uEgnMWyYQin8RFhIrqSJS6ApW7d93PAzeFCYXI1%40thread.tacv2/Automation?groupId=f6e4f04a-d72b-4965-843e-5e4b2cdc9ba9&tenantId=674533b5-cfbc-474b-9e32-29d36f4800ba&allowXTenantAccess=False" },
+        "contentType": "html",
+        "message": "=<strong>✅ New Client Onboarding Submission</strong><br/>Name: {{$('Validate and Normalize').item.json.fullName}}<br/>Email: {{$('Validate and Normalize').item.json.email}}<br/>Company: {{$('Validate and Normalize').item.json.company}}<br/>Service: {{$('Validate and Normalize').item.json.service}}<br/>Time: {{$('Validate and Normalize').item.json.timestamp}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [-8400, 10880],
+      "id": "287c509b-5e8a-4d08-913b-b999ab0315c6",
+      "name": "Notify Teams",
+      "credentials": { "microsoftTeamsOAuth2Api": { "id": "NOspu2ciyPrBSazC", "name": "Microsoft Teams account" } },
+      "onError": "continueErrorOutput"
+    },
+
+    {
+      "parameters": { "amount": 30 },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-8176, 10880],
+      "id": "308373be-e126-4a4e-bc53-ad463b8c9a5a",
+      "name": "Wait 48 Hours",
+      "webhookId": "a3c1e6a2-9f2b-4a11-9d2f-2f6e6c1b7e10"
+    },
+
+    {
+      "parameters": {
+        "resource":  "thread",
+        "operation": "get",
+        "threadId":  "={{$('Set Status - Processed').item.json.gmailThreadId}}",
+        "options":   {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [-7952, 10880],
+      "id": "61ef5f7d-eac0-4787-8ac6-708c5df423b8",
+      "name": "Get Email Thread",
+      "credentials": { "gmailOAuth2": { "id": "L2XHozcORIinc6V8", "name": "Gmail OAuth2 API" } }
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1 },
+          "conditions": [{ "id": "d1", "leftValue": "={{$json.messages.length}}", "rightValue": 1, "operator": { "type": "number", "operation": "lte" } }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-7728, 10880],
+      "id": "c53bf561-3060-4d79-a418-76f9911cca7b",
+      "name": "Client Replied?"
+    },
+
+    {
+      "parameters": {
+        "sendTo":  "={{$('Validate and Normalize').item.json.email}}",
+        "subject": "=Just checking in, {{$('Validate and Normalize').item.json.firstName}}",
+        "message": "=<p>Hi {{$('Validate and Normalize').item.json.firstName}},</p><p>Just following up on your onboarding request for {{$('Validate and Normalize').item.json.company}} — wanted to make sure it did not get lost in your inbox.</p><p>Let us know if you have any questions, or if you would like to schedule a quick call to go over next steps.</p><p>Talk soon,<br/>The Team</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [-7504, 10784],
+      "id": "f7be0126-a4cd-4880-9079-240057f1afc5",
+      "name": "Send Follow-up Email",
+      "credentials": { "gmailOAuth2": { "id": "L2XHozcORIinc6V8", "name": "Gmail OAuth2 API" } }
+    },
+
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "sfs1", "name": "status",        "value": "Failed",                                                                     "type": "string" },
+            { "id": "sfs2", "name": "failureReason",  "value": "={{$json.error?.message ?? 'Email failed to send or sheet update failed'}}", "type": "string" }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-8400, 11200],
+      "id": "0acc197c-f9bd-41ae-908b-512c84d2fbe5",
+      "name": "Set Status - Failed (System Error)"
+    },
+
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "1put_v9QQTPINKLszieEw-_z_lMgH0OzrTiYtO1xKTTk", "mode": "id" },
+        "sheetName":  { "__rl": true, "value": "gid=0", "mode": "list", "cachedResultName": "Submissions", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1put_v9QQTPINKLszieEw-_z_lMgH0OzrTiYtO1xKTTk/edit#gid=0" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "submissionId": "={{$('Validate and Normalize').item.json.submissionId}}",
+            "firstName":    "={{$('Validate and Normalize').item.json.firstName}}",
+            "lastName":     "={{$('Validate and Normalize').item.json.lastName}}",
+            "fullName":     "={{$('Validate and Normalize').item.json.fullName}}",
+            "email":        "={{$('Validate and Normalize').item.json.email}}",
+            "company":      "={{$('Validate and Normalize').item.json.company}}",
+            "service":      "={{$('Validate and Normalize').item.json.service}}",
+            "timestamp":    "={{$('Validate and Normalize').item.json.timestamp}}",
+            "status":       "={{$json.status}}",
+            "failureReason":"={{$json.failureReason ?? ''}}"
+          },
+          "matchingColumns": ["submissionId"],
+          "schema": [
+            {"id":"firstName",    "displayName":"firstName",    "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"lastName",     "displayName":"lastName",     "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"fullName",     "displayName":"fullName",     "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"email",        "displayName":"email",        "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"company",      "displayName":"company",      "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"service",      "displayName":"service",      "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"timestamp",    "displayName":"timestamp",    "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"submissionId", "displayName":"submissionId", "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true,"removed":false},
+            {"id":"status",       "displayName":"status",       "required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true},
+            {"id":"failureReason","displayName":"failureReason","required":false,"defaultMatch":false,"display":true,"type":"string","canBeUsedToMatch":true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-8176, 11712],
+      "id": "092ab7d1-e5c2-4543-9eab-90ee93412544",
+      "name": "Update Row - Failed",
+      "credentials": { "googleSheetsOAuth2Api": { "id": "F9jNo5cS2WeJwNH4", "name": "Google Sheets account 4" } }
+    },
+
+    {
+      "parameters": {
+        "resource":    "channelMessage",
+        "teamId":      { "__rl": true, "value": "f6e4f04a-d72b-4965-843e-5e4b2cdc9ba9", "mode": "list", "cachedResultName": "Automation" },
+        "channelId":   { "__rl": true, "value": "19:KE1q1uEgnMWyYQin8RFhIrqSJS6ApW7d93PAzeFCYXI1@thread.tacv2", "mode": "list", "cachedResultName": "Automation", "cachedResultUrl": "https://teams.cloud.microsoft/l/channel/19%3AKE1q1uEgnMWyYQin8RFhIrqSJS6ApW7d93PAzeFCYXI1%40thread.tacv2/Automation?groupId=f6e4f04a-d72b-4965-843e-5e4b2cdc9ba9&tenantId=674533b5-cfbc-474b-9e32-29d36f4800ba&allowXTenantAccess=False" },
+        "contentType": "html",
+        "message": "=<strong>⚠️ Onboarding Submission FAILED</strong><br/>Name: {{$('Validate and Normalize').item.json.fullName}}<br/>Email: {{$('Validate and Normalize').item.json.email}}<br/>Company: {{$('Validate and Normalize').item.json.company}}<br/>Service: {{$('Validate and Normalize').item.json.service}}<br/>Time: {{$('Validate and Normalize').item.json.timestamp}}<br/>Reason: {{$json.failureReason ?? 'Unknown error'}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [-7952, 11712],
+      "id": "12bbbf0b-16a6-4bc6-a51d-760f21c5a895",
+      "name": "Alert Team - Failure",
+      "credentials": { "microsoftTeamsOAuth2Api": { "id": "NOspu2ciyPrBSazC", "name": "Microsoft Teams account" } }
+    }
+  ],
+
+  "pinData": {
+    "Webhook": [
+      {"json": {"name": "First item",  "code": 1}},
+      {"json": {"name": "Second item", "code": 2}}
+    ],
+    "Validate and Normalize": [
+      {
+        "json": {
+          "firstName": "Lawrence Oliver", "lastName": "Tilde",
+          "fullName": "Lawrence Oliver Tilde", "email": "lawrencetilde@gmail.com",
+          "company": "RAHYO", "service": "Automation",
+          "timestamp": "2026-07-13 23:16:21",
+          "submissionId": "1783955781273-yojvdb",
+          "status": "Pending", "failureReason": "", "emailValid": true
+        }
+      }
+    ]
+  },
+
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate and Normalize", "type": "main", "index": 0 }]]
+    },
+    "Validate and Normalize": {
+      "main": [[{ "node": "Email Format Valid?", "type": "main", "index": 0 }]]
+    },
+    "Email Format Valid?": {
+      "main": [
+        [
+          { "node": "Save to Firestore",  "type": "main", "index": 0 },
+          { "node": "Create Pending Row", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Update Row - Failed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Create Pending Row": {
+      "main": [[{ "node": "Check Domain MX", "type": "main", "index": 0 }]]
+    },
+    "Check Domain MX": {
+      "main": [[{ "node": "Domain Valid?", "type": "main", "index": 0 }]]
+    },
+    "Domain Valid?": {
+      "main": [
+        [{ "node": "Send Welcome Email",  "type": "main", "index": 0 }],
+        [{ "node": "Update Row - Failed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [{ "node": "Set Status - Processed",             "type": "main", "index": 0 }],
+        [{ "node": "Set Status - Failed (System Error)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Set Status - Processed": {
+      "main": [[{ "node": "Update Row - Processed", "type": "main", "index": 0 }]]
+    },
+    "Update Row - Processed": {
+      "main": [
+        [{ "node": "Notify Teams",                       "type": "main", "index": 0 }],
+        [{ "node": "Set Status - Failed (System Error)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Notify Teams": {
+      "main": [[{ "node": "Wait 48 Hours", "type": "main", "index": 0 }]]
+    },
+    "Wait 48 Hours": {
+      "main": [[{ "node": "Get Email Thread", "type": "main", "index": 0 }]]
+    },
+    "Get Email Thread": {
+      "main": [[{ "node": "Client Replied?", "type": "main", "index": 0 }]]
+    },
+    "Client Replied?": {
+      "main": [
+        [{ "node": "Send Follow-up Email", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Set Status - Failed (System Error)": {
+      "main": [[{ "node": "Update Row - Failed", "type": "main", "index": 0 }]]
+    },
+    "Update Row - Failed": {
+      "main": [[{ "node": "Alert Team - Failure", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f1e2d3c4-b5a6-7890-cdef-123456789abc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "80666d364287a200945dc44708433809b1e7e2846b06e2a743946d26c33b748c"
+  },
+  "nodeGroups": [],
+  "id": "lRmyH24YxzYhIwA6",
+  "tags": []
+}
